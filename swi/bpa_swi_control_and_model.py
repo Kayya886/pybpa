@@ -10,9 +10,9 @@
 import sys
 import inspect
 
-from bpa_operations.bpa_base import _build, CARD_TYPE
-from bpa_operations.bpa_uid import _TypeNameUid, _OneNameUid, _TwoNameUid, BUS_NAME_STR, BUS_BASE_STR, BUS_NAME1_STR, \
-    BUS_NAME2_STR, BUS_BASE1_STR, BUS_BASE2_STR, _GenUid
+from base.bpa_base import _build, CARD_TYPE
+from base.bpa_uid import _TypeNameUid, _OneNameUid, _TwoNameUid, BUS_NAME_STR, BUS_BASE_STR, BUS_NAME1_STR, \
+    BUS_NAME2_STR, BUS_BASE1_STR, BUS_BASE2_STR, _GenUid, GEN_ID
 
 
 # ======================================================================================================================
@@ -84,22 +84,76 @@ class SwiFLT(_TwoNameUid):
                                         [4, 80, '待补充', 'A77']])
 
 
-class SwiMC(_TypeNameUid):
+class SwiMC(_GenUid):
     """NOTE"""
     fields, line, field_index = _build([[1, 2, CARD_TYPE, 'A2', 'MC'],
-                                        [3, 80, '待补充', 'A78']])
+                                        [3, 3, 'CHANGE CODE', 'A1'],
+                                        [4, 11, BUS_NAME_STR, 'A8'],
+                                        [12, 15, BUS_BASE_STR, 'F4.0', None, 'kV'],
+                                        [16, 16, GEN_ID, 'A1'],
+                                        [17, 22, 'EMWS', 'F6.0', None, 'MW/s'],
+                                        [23, 25, 'Ppu', 'F3.2', 1.0],
+                                        [26, 28, 'Qpu', 'F3.2', 1.0],
+                                        [29, 32, 'MVABASE', 'F4.0'],
+                                        [33, 36, 'Ra', 'F4.4', 0],
+                                        [37, 41, 'Xdp', 'F5.4', 0],
+                                        [42, 46, 'Xqp', 'F5.4', 0],
+                                        [47, 51, 'Xd', 'F5.4', 0],
+                                        [52, 56, 'Xq', 'F5.4', 0],
+                                        [57, 60, 'Tdop', 'F4.2', 0],
+                                        [61, 63, 'Tqop', 'F3.2', 0],
+                                        [64, 68, 'XL', 'F5.4', 0],
+                                        [69, 73, 'SG1.0', 'F5.4', 0],
+                                        [74, 77, 'SG2.0', 'F4.3', 0],
+                                        [78, 80, 'D', 'F3.2', 0]])
 
 
-class SwiMF(_OneNameUid):
+class SwiMF(_GenUid):
     """NOTE"""
     fields, line, field_index = _build([[1, 2, CARD_TYPE, 'A2', 'MF'],
-                                        [3, 80, '待补充', 'A78']])
+                                        [3, 3, 'CHANGE CODE', 'A1'],
+                                        [4, 11, BUS_NAME_STR, 'A8'],
+                                        [12, 15, BUS_BASE_STR, 'F4.0', None, 'kV'],
+                                        [16, 16, GEN_ID, 'A1'],
+                                        [17, 22, 'EMWS', 'F6.0', None, 'MW/s'],
+                                        [23, 25, 'Ppu', 'F3.2', 1.0],
+                                        [26, 28, 'Qpu', 'F3.2', 1.0],
+                                        [29, 32, 'MVABASE', 'F4.0'],
+                                        [33, 36, 'Ra', 'F4.4', 0],
+                                        [37, 41, 'Xdp', 'F5.4', 0],
+                                        [42, 46, 'Xqp', 'F5.4', 0],
+                                        [47, 51, 'Xd', 'F5.4', 0],
+                                        [52, 56, 'Xq', 'F5.4', 0],
+                                        [57, 60, 'Tdop', 'F4.2', 0],
+                                        [61, 63, 'Tqop', 'F3.2', 0],
+                                        [64, 68, 'Xp', 'F5.4', 0],
+                                        [69, 73, 'SG1.0', 'F5.4', 0],
+                                        [74, 77, 'SG2.0', 'F4.3', 0],
+                                        [78, 80, 'D', 'F3.2', 0]])
 
 
-class SwiMG(_OneNameUid):
+class SwiMG(_GenUid):
     """NOTE"""
     fields, line, field_index = _build([[1, 2, CARD_TYPE, 'A2', 'MG'],
-                                        [3, 80, '待补充', 'A78']])
+                                        [3, 3, 'CHANGE CODE', 'A1'],
+                                        [4, 11, BUS_NAME_STR, 'A8'],
+                                        [12, 15, BUS_BASE_STR, 'F4.0', None, 'kV'],
+                                        [16, 16, GEN_ID, 'A1'],
+                                        [17, 22, 'EMWS', 'F6.0', None, 'MW/s'],
+                                        [23, 25, 'Ppu', 'F3.2', 1.0],
+                                        [26, 28, 'Qpu', 'F3.2', 1.0],
+                                        [29, 32, 'MVABASE', 'F4.0'],
+                                        [33, 36, 'Ra', 'F4.4', 0],
+                                        [37, 41, 'Xdp', 'F5.4', 0],
+                                        [42, 46, 'Xqp', 'F5.4', 0],
+                                        [47, 51, 'Xd', 'F5.4', 0],
+                                        [52, 56, 'Xq', 'F5.4', 0],
+                                        [57, 60, 'Tdop', 'F4.2', 0],
+                                        [61, 63, 'Tqop', 'F3.2', 0],
+                                        [64, 68, 'N', 'F5.4', 0],
+                                        [69, 73, 'A', 'F5.4', 0],
+                                        [74, 77, 'B', 'F4.3', 0],
+                                        [78, 80, 'D', 'F3.2', 0]])
 
 
 class SwiG(_OneNameUid):
@@ -110,8 +164,20 @@ class SwiG(_OneNameUid):
 
 class SwiM(_GenUid):
     """NOTE"""
-    fields, line, field_index = _build([[1, 1, CARD_TYPE, 'A1', 'M'],
-                                        [2, 80, '待补充', 'A79']])
+    fields, line, field_index = _build([[1, 2, CARD_TYPE, 'A2', 'M '],
+                                        [3, 3, 'CHANGE CODE', 'A1'],
+                                        [4, 11, BUS_NAME_STR, 'A8'],
+                                        [12, 15, BUS_BASE_STR, 'F4.0', None, 'kV'],
+                                        [16, 16, GEN_ID, 'A1'],
+                                        [17, 21, 'MVA RATING', 'F5.1'],
+                                        [23, 25, 'PF', 'F3.2', 1.0],
+                                        [27, 29, 'NoUNIT', 'A3'],
+                                        [31, 32, 'GTYPE', 'A2'],
+                                        [34, 36, 'OWNER', 'A3'],
+                                        [38, 42, 'Xdpp', 'F5.4', 0],
+                                        [43, 47, 'Xqpp', 'F5.4', 0],
+                                        [48, 51, 'Tdopp', 'F4.4', 0],
+                                        [52, 55, 'Tqopp', 'F4.4', 0]])
 
 
 class SwiL(_OneNameUid):

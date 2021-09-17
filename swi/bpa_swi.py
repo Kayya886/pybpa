@@ -13,14 +13,13 @@ from typing import List
 
 import pandas as pd
 
-from bpa_operations.bpa_uid import _OneNameUid, _TwoNameUid, BUS_BASE_STR, BUS_NAME_STR, ANGLE, VOLTAGE
-from bpa_operations.bpa_base import _to_card, _build, CARD_TYPE, _Field
-from bpa_operations.bpa_str import bpa_card_line
-from bpa_operations.dat.bpa_dat import DAT
-from bpa_operations.swi import bpa_swi_control_and_model as CM, bpa_swi_output as O
-from bpa_operations import bpa_annotation as A
-from bpa_operations.bpa_uid import *
-
+from base.bpa_uid import _OneNameUid, _TwoNameUid, BUS_BASE_STR, BUS_NAME_STR, ANGLE, VOLTAGE
+from base.bpa_base import _to_card, _build, CARD_TYPE, _Field
+from base.bpa_str import bpa_card_line
+from dat.bpa_dat import DAT
+from swi import bpa_swi_control_and_model as CM, bpa_swi_output as O
+from base import bpa_annotation as A
+from base.bpa_uid import *
 
 # ------------------------- fields --------------------------
 
@@ -45,14 +44,26 @@ class SWI:
 
 
     def __init__(self, *p):
-        self.lines, self.can, self.ccm, self.cop, self.cf0, self.cf1, self.cff, self.cpara_file, self.c90, self.c99 = p
+        self.lines, self.can, self.ccm, self.cop, self.cf0, self.cf1, self.cff, self.cpara_file, self.c90, self.c99, self.dat = p
+        self.get_gen_info()
         self.swx_struct = self.get_output_struct()
-        self.dat = None
         self.start_step = 19
         self.end_step = 40
         self.sim_step_mask = None
-        self.time_index = [10.0, 15.0]  # lsd文件中的信息
         self.fault_step, self.clear_step = 10.0, 15.0
+        self.time_index = [self.fault_step, self.clear_step]  # lsd文件中的信息
+
+    def get_gen_info(self):
+        """补充发电机信息到dat"""
+        df = pd.DataFrame(self.dat.gen_name, columns=['NAME'])
+        gen_name = self.dat.gen_name
+        for gen_card in [self.lines[i] for i in self.ccm if self.lines[i].name in gen_name]:
+            if gen_card.name != 'NAME' and gen_card.name in gen_name:
+                gen_i = self.dat.gen_order[gen_card.name]
+                for f_i in range(1, len(gen_card.fields)):
+                    df.loc[gen_i, gen_card.fields[f_i].name] = gen_card.values[f_i]
+        df['Tj'] = 2 * df['EMWS'] / df['MVA RATING']
+        self.dat.gen_info = df
 
     def get_output_struct(self):
         """
@@ -85,13 +96,9 @@ class SWI:
         """将结构化的card还原回str行"""
         return '\n'.join([x if type(x) is str else str(x) for x in self.lines]) + '\n'
 
-    def read_swx(self, swx_file, dat: DAT = None):
+    def read_swx(self, swx_file):
         # if not self.swx_struct:
         #     self.swx_struct = self.get_output_struct()
-        if not self.dat:
-            self.dat = dat
-            if dat is None:
-                raise ValueError('没有关联的Dat对象！')
 
         swx_lines = open(swx_file, 'r').readlines()
         swx_lines = [l[:-1] for l in swx_lines if l[0] == ' ']
@@ -106,9 +113,14 @@ class SWI:
             swx[t].update({idx: data1})
             pf[t].update({idx: data2})
 
+        # 将功角转化为最滞后机组坐标系下
+        if swx['G']:
+            swx = self.ref_to_lag_gen(swx)
+            # swx = self.ref_to_coi(swx)
+
         # 打标签，将字典转换为断面
         label = self.get_label(swx)
-        pfs = self.swx2pf_section(dat, pf)
+        pfs = self.swx2pf_section(pf)
 
         # 截断和重新组织swx
         for k, v in swx.items():
@@ -118,18 +130,68 @@ class SWI:
 
         return swx, pfs, label
 
+    def ref_to_coi(self, swx):
+        gs = swx['G']
+
+        no_angle_report = [key for key, value in gs.items() if ANGLE not in value.columns]
+        if no_angle_report:
+            raise ValueError('SWX存在发电机没有ANGLE字段！' + str(no_angle_report))
+
+        # 所以实际上，能够进行到这一步，所有发电机的名字都应该是全的，否则不能计算COI
+        g = np.array([gs[i][ANGLE] for i in range(len(self.dat.gen_name))])
+        """g: angle: time * gen"""
+
+        Tj = np.array(self.dat.gen_info['Tj'])
+        Tj = Tj / sum(Tj)
+
+        coi = np.matmul(g.T, Tj.reshape(-1, 1)).reshape(1, -1)
+
+        g = g - coi
+
+        for i in range(len(self.dat.gen_name)):
+            gs[i][ANGLE] = g[i]
+
+        swx['COI'] = {'COI': pd.DataFrame(coi)}
+        return swx
+
+    def ref_to_lag_gen(self, swx):
+        gs = swx['G']
+
+        no_angle_report = [key for key, value in gs.items() if ANGLE not in value.columns]
+        if no_angle_report:
+            raise ValueError('SWX存在发电机没有ANGLE字段！' + str(no_angle_report))
+
+        # 所以实际上，能够进行到这一步，所有发电机的名字都应该是全的，否则不能计算COI
+        g = np.array([gs[i][ANGLE] for i in range(len(self.dat.gen_name))])
+        """g: angle: time * gen"""
+
+        Tj = np.array(self.dat.gen_info['Tj'])
+        Tj = Tj / sum(Tj)
+
+        coi = np.matmul(g.T, Tj.reshape(-1, 1)).reshape(1, -1)
+
+        lag = np.amin(g, axis=0)
+        g = g - lag
+
+        for i in range(len(self.dat.gen_name)):
+            gs[i][ANGLE] = g[i]
+
+        swx['LAG'] = {'LAG': pd.DataFrame(lag)}
+        swx['COI'] = {'COI': pd.DataFrame(coi)}
+        return swx
+
     def get_label(self, swx):
         # 功角稳定标签。默认所有发电机都有，毕竟发电机不完整的话，不叫功角稳定
         g = swx['G']
         max_delta_gen_angle, max_delta_sys_angle = None, None
         if g:
-            temp_g = pd.concat([gg[ANGLE] for gg in g.values()], axis=1, ignore_index=True)
-            temp_g.columns = g.keys()
+            temp_g = pd.concat([g[i][ANGLE] for i in range(len(self.dat.gen_name))], axis=1, ignore_index=True)
+            temp_g.columns = [i for i in range(len(self.dat.gen_name))]
 
             max_delta_gen_angle = temp_g.abs().max(axis=0)
 
-            min_g = temp_g.min(axis=1)
             max_g = temp_g.max(axis=1)
+            min_g = temp_g.min(axis=1)
             max_delta_sys_angle = max_g.sub(min_g, axis=0).abs().max(axis=0)
 
         # 电压稳定标签
@@ -144,7 +206,7 @@ class SWI:
         return {'G': [max_delta_gen_angle, max_delta_sys_angle],
                 'B': [min_bus_voltage, max_bus_voltage]}
 
-    def swx2pf_section(self, dat: DAT, swx_struct):
+    def swx2pf_section(self, swx_struct):
         """
         最终妥协成跟pfo一样的格式。
         @param dat:
@@ -161,10 +223,10 @@ class SWI:
 
         for t in self.time_index:
             df_b = pd.DataFrame([swx_struct['B'][key].loc[t]
-                               for key in swx_struct['B'].keys()], index=swx_struct['B'].keys())
+                                 for key in swx_struct['B'].keys()], index=swx_struct['B'].keys())
             df_g = pd.DataFrame([swx_struct['G'][key].loc[t]
                                  for key in swx_struct['G'].keys()], index=swx_struct['G'].keys())
-            df_g.index = [dat.gen_bus_order[i] for i in df_g.index]
+            df_g.index = [self.dat.gen_bus_order[i] for i in df_g.index]
             if ANGLE in df_g.columns:
                 df_g.rename(columns={ANGLE: ANGLE + '_g'})
             df = pd.merge(df_b, df_g, how='outer', left_index=True, right_index=True)
@@ -223,8 +285,6 @@ class SWI:
             data['DANGLE'][data['DANGLE'] <-180] = data['DANGLE'][data['DANGLE'] <-180] + 360
             data['ANGLE'] = data['DANGLE'].cumsum(axis=0) + data['ANGLE'][0]
 
-
-
         # 分割出t0+-的时刻
         data, data2 = data[self.sim_step_mask].copy(), data[~self.sim_step_mask].copy()
         data.set_index('STEP', inplace=True)
@@ -240,15 +300,17 @@ class SWI:
         return self.cff.get_value('ENDT')
 
     @staticmethod
-    def build_from_folder(folder_path):
+    def build_from_folder(folder_path, dat=None):
         for f in os.listdir(folder_path):
             if '.swi' in f.lower():
                 lines = open(folder_path + '/' + f, 'rb').readlines()
-                return SWI.build_from_lines(lines)
+                if dat is None:
+                    dat = DAT.build_from_folder(folder_path)
+                return SWI.build_from_lines(lines, dat)
         raise ValueError('cannot find .swi file in folder_path!')
 
     @staticmethod
-    def build_from_lines(ll: List[str]):
+    def build_from_lines(ll: List[str], dat):
         ll = [bpa_card_line(line) for line in ll]
 
         lines = []
@@ -306,7 +368,7 @@ class SWI:
             if len(c) > 1:
                 raise ValueError('has more than 1 card!')
 
-        return SWI(lines, can, ccm, cop, cf0, cf1, cff, cpara_file, c90, c99)
+        return SWI(lines, can, ccm, cop, cf0, cf1, cff, cpara_file, c90, c99, dat)
 
     def _parse_bus(self, line):
         """不用uid的原因是，这里的base是F5.0"""
@@ -319,8 +381,8 @@ class SWI:
         """不用uid的原因是，这里的base是F5.0"""
         bline = bytes(line, encoding='gbk')
         assert len(bline) == 15
-        name = bline[:8].decode('gbk', errors='ignore')\
-               + SWI.base_writer(SWI.base_reader(bline[9:-1].decode('gbk', errors='ignore')))\
+        name = bline[:8].decode('gbk', errors='ignore') \
+               + SWI.base_writer(SWI.base_reader(bline[9:-1].decode('gbk', errors='ignore'))) \
                + bline[-1:].decode('gbk', errors='ignore')
         return name, self.dat.gen_order[name]
 
@@ -334,16 +396,15 @@ class SWI:
 
 if __name__ == '__main__':
     # a = SwiG('G  bus36   100     5                 5           5            bus39   100')
-    folder_path = r'E:\Data\transient_stability\300\bpa'
+    folder_path = r'E:\Data\transient_stability\39\bpa\0_90_0'
     # folder_path = r'D:\OneDrive\桌面\总调项目\20191112100152_save_1'
-    op = '/1_100_113_0'
-    dat = DAT.build_from_folder(folder_path + op)
+    # dat = DAT.build_from_folder(folder_path + op)
     swi = SWI.build_from_folder(folder_path)
     # p = [i for i in os.listdir(folder_path + op) if '.swx' in i.lower()]
     # for f in p:
     #     print(f)
     #     swx, pfs, label  = swi.read_swx(folder_path + op + '/' + f, dat)
-    swx, pfs, label  = swi.read_swx(r'E:/Data/transient_stability/300/bpa/0_105_0/0(115-69).SWX', dat)
+    swx, pfs, label  = swi.read_swx(r'E:\Data\transient_stability\39\bpa\0_90_0/0(bus2--bus25(25)).SWX')
     #         break
     # swx, pfs, label  = swi.read_swx(r'D:\OneDrive\桌面\PsdEdit\a\0_105_0\0(6-266).SWX', dat)
     # pfo_path = r'D:\OneDrive\桌面\PsdEdit\a\0_105_0\0_105_0.pfo'

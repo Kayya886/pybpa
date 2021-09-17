@@ -17,6 +17,7 @@ from base import bpa_annotation
 from base.bpa_uid import *
 from base.bpa_base import _to_card
 from base.bpa_str import bpa_card_line
+from base.bpa_uid import _OneNameUid
 
 from dat import bpa_dat_before_data, bpa_dat_data
 """
@@ -27,6 +28,7 @@ dat结构：
 控制语句
 一级语句
 """
+
 
 
 class DAT:
@@ -48,6 +50,7 @@ class DAT:
         self.bus, self.bus_indexs, self.bus_order, self.bus_name, \
         self.branch, self.branch_indexs, self.branch_order, self.branch_name, self.branch_bus_order, \
         self.gen, self.gen_indexs, self.gen_order, self.gen_name, self.gen_bus_order = self.get_data_struct()
+        self.gen_info = None
         self.branch_y, self.y_matrix = None, None
         self.get_branch_y()
         self.get_Y_matrix()
@@ -281,12 +284,12 @@ class DAT:
 
             # raise ValueError('unknown bline!')
             print('unknown bline!: ', l)
-            position = 1  # 补丁，用于没法被识别的行出现时，会导致网络数据读取中断
+            position = 1
 
         return DAT(lines, can, cc1, cdt, cc2)
 
 
-def _bus_has_gen(bus):
+def _bus_has_gen(bus: _OneNameUid):
     """
     由于dat文件没有明示哪个bus有GEN，于是只能自己判断是否有GEN
     @param bus:
@@ -302,8 +305,10 @@ def _bus_has_gen(bus):
 
 if __name__ == '__main__':
     # a = SwiG('G  bus36   100     5                 5           5            bus39   100')
-    folder_path = r'E:\Data\transient_stability\300\dats\2_95_298_71_2_66'
+    folder_path = r'D:\OneDrive\桌面\PsdEdit\a/0_100_0'
+    # folder_path = r'E:\Data\transient_stability\300\dats\2_95_298_71_2_66'
     pfo_path = r'E:\Data\transient_stability\300\dats\2_95_298_71_2_66\2_95_298_71_2_66.pfo'
+    pfo_path = r'D:\OneDrive\桌面\PsdEdit\a/0_100_0/0_100_0.pfo'
     # folder_path = r'D:\OneDrive\桌面\总调项目\20191112100152_save_1'
     dat = DAT.build_from_folder(folder_path)
     pfo = dat.read_pfo(pfo_path)

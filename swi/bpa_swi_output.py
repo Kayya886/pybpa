@@ -9,8 +9,8 @@
 import sys
 import inspect
 
-from bpa_operations.bpa_base import _build, CARD_TYPE
-from bpa_operations.bpa_uid import _TypeNameUid, _OneNameUid, _TwoNameUid, BUS_NAME_STR, BUS_BASE_STR, BUS_NAME1_STR, \
+from base.bpa_base import _build, CARD_TYPE
+from base.bpa_uid import _TypeNameUid, _OneNameUid, _TwoNameUid, BUS_NAME_STR, BUS_BASE_STR, BUS_NAME1_STR, \
     BUS_NAME2_STR, BUS_BASE1_STR, BUS_BASE2_STR, _GenUid, CKT_ID, ANGLE, VOLTAGE, LOAD_P, LOAD_Q, GEN_P, GEN_Q
 
 
